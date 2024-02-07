@@ -5,7 +5,7 @@ AI playing Google Chrome Dino game.
 
 ## Prerequisites
 
--  Python 3.10 installed.
+-  Python 3.8 installed.
 -  Pip (usually comes with the latest Python installations).
 
 ## Installation
