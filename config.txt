@@ -1,4 +1,3 @@
-
 [NEAT]
 fitness_criterion     = max
 fitness_threshold     = 10000
@@ -68,7 +67,7 @@ weight_mutate_rate      = 0.8
 weight_replace_rate     = 0.1
 
 [DefaultSpeciesSet]
-compatibility_threshold = 3.0
+compatibility_threshold = 1000.0
 
 [DefaultStagnation]
 species_fitness_func = max
@@ -76,5 +75,6 @@ max_stagnation       = 100
 species_elitism      = 1
 
 [DefaultReproduction]
-elitism            = 1
-survival_threshold = 0.2
+elitism            = 5
+survival_threshold = 0.05
+min_species_size   = 5

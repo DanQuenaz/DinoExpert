@@ -69,7 +69,7 @@ class Game:
     def update(self):
         self.tick_game += 1
         if self.tick_game >= 150:
-            self.game_speed = self.game_speed + 1 if self.game_speed <= self.max_game_speed else self.max_game_speed
+            self.game_speed = self.game_speed + 1 if self.game_speed < self.max_game_speed else self.max_game_speed
             self.tick_game = 0
 
         self.anim_ground()
