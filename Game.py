@@ -158,43 +158,26 @@ class Game:
         all_dinos = self.dino_sprite.sprites()
 
         for dino in all_dinos:
-            next_enemies = self.find_next_two_enemies(dino)
+            next_enemies = self.find_next_enemies(dino)
 
             # Defaults
-            dist1 = ge.WINDOW_WIDTH
-            height1 = 0
-            type1 = 0
-            width1 = 0
-
-            dist2 = ge.WINDOW_WIDTH
-            height2 = 0
-            type2 = 0
-            width2 = 0
+            dist = ge.WINDOW_WIDTH
+            height = 0
+            type = 0
+            width = 0
 
             if len(next_enemies) >= 1:
                 e1 = next_enemies[0]
-                dist1 = abs(dino.rect.x - e1.rect.x)
-                height1 = abs(e1.rect.bottom - ge.WINDOW_HEIGHT)
-                type1 = 1 if e1.enemy_type == "pterosaur" else 0
-                width1 = e1.rect.width
-
-            if len(next_enemies) >= 2:
-                e2 = next_enemies[1]
-                dist2 = abs(dino.rect.x - e2.rect.x)
-                height2 = abs(e2.rect.bottom - ge.WINDOW_HEIGHT)
-                type2 = 1 if e2.enemy_type == "pterosaur" else 0
-                width2 = e2.rect.width
+                dist = abs(dino.rect.x - e1.rect.x)
+                height = abs(e1.rect.bottom - ge.WINDOW_HEIGHT)
+                type = 1 if e1.enemy_type == "pterosaur" else 0
+                width = e1.rect.width
 
             brain_input = (
-                dist1 / ge.WINDOW_WIDTH,
-                height1 / 160,
-                type1,
-                width1 / 100,
-
-                dist2 / ge.WINDOW_WIDTH,
-                height2 / 160,
-                type2,
-                width2 / 100,
+                dist / ge.WINDOW_WIDTH,
+                height / 160,
+                type,
+                width / 100,
 
                 self.game_speed / self.max_game_speed
             )
@@ -202,7 +185,7 @@ class Game:
             dino.enemy_in_focus = next_enemies[0] if len(next_enemies) > 0 else None
             dino.get_decision(brain_input)
 
-    def find_next_two_enemies(self, dino):
+    def find_next_enemies(self, dino):
         enemies = self.enemies_sprite.sprites()
         enemies.sort(key=lambda x: x.rect.x)
 
@@ -211,8 +194,7 @@ class Game:
         for enemy in enemies:
             if dino.rect.left <= (enemy.rect.right + 5):
                 next_enemies.append(enemy)
-                if len(next_enemies) == 2:
-                    break
+                break
 
         return next_enemies
 
