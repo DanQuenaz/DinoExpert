@@ -20,7 +20,7 @@ class Game:
         self.ticks_text = 0
         self.max_game_speed = 20
         self.dino_enemy_focus = False
-        self.show_game_info = False
+        self.show_game_info = True
         pygame.font.init()
         self.font = pygame.font.SysFont('Comic Sans MS', 15)
 
@@ -50,7 +50,16 @@ class Game:
             for id, genoma in genomas:
                 brain = neat.nn.FeedForwardNetwork.create(genoma, config)
                 genoma.fitness = 0
-                DinoExpert("assets/dino/dino_0.png", 20, DinoExpert.DINO_Y, brain, genoma, id, self.dino_sprite)
+
+                # 🎨 se não tiver cor, cria uma
+                if not hasattr(genoma, "color"):
+                    genoma.color = (
+                        random.randrange(50, 256),
+                        random.randrange(50, 256),
+                        random.randrange(50, 256)
+                    )
+
+                DinoExpert("assets/dino/dino_0.png",20, DinoExpert.DINO_Y, brain, genoma, id, genoma.color, self.dino_sprite)
         else:
             self.dino = DinoHuman("assets/dino/dino_0.png", 20, DinoExpert.DINO_Y, self.dino_sprite)
 
@@ -68,7 +77,7 @@ class Game:
 
     def update(self):
         self.tick_game += 1
-        if self.tick_game >= 150:
+        if self.tick_game >= 600:
             self.game_speed = self.game_speed + 1 if self.game_speed < self.max_game_speed else self.max_game_speed
             self.tick_game = 0
 
@@ -80,65 +89,132 @@ class Game:
         self.collisions()
 
         if self.ia_playing:
+            self.reward_passed_enemies()
+
+        if self.ia_playing:
             self.get_dino_decisions()
 
         return len(self.dino_sprite.sprites())
 
     def anim_ground(self):
-        self.ground1.rect[0] -= self.game_speed
-        self.ground1.rect[0] = self.ground1.rect[0] % (-ge.WINDOW_WIDTH)
+        self.ground1.rect.x -= self.game_speed
+        self.ground2.rect.x -= self.game_speed
 
-        self.ground2.rect[0] -= self.game_speed
-        self.ground2.rect[0] = self.ground1.rect[0] % ge.WINDOW_WIDTH
+        if self.ground1.rect.right <= 0:
+            self.ground1.rect.x = self.ground2.rect.right
+
+        if self.ground2.rect.right <= 0:
+            self.ground2.rect.x = self.ground1.rect.right
 
     def generate_enemies(self):
         all_enemies = self.enemies_sprite.sprites()
         total_enemies = len(all_enemies)
         distance_last_enemy = 2000
+        last_enemy = None
 
         if total_enemies > 0:
-            last_enemy = all_enemies[total_enemies - 1]
+            last_enemy = all_enemies[-1]
             distance_last_enemy = abs(ge.WINDOW_WIDTH - last_enemy.rect.x)
 
-        if ge.get_probability(0.2) and distance_last_enemy >= self.distance_to_next_enemy:
-            enemy_data = self.enemies_data[3]
-            Pterosaur(enemy_data["sprite"], ge.WINDOW_WIDTH-100, random.randrange(500, 601), self.enemies_sprite)
-            self.distance_to_next_enemy = random.randrange(750, 2000)
+        can_spawn = distance_last_enemy >= self.distance_to_next_enemy
 
-        elif distance_last_enemy >= self.distance_to_next_enemy:
+        if not can_spawn:
+            return
+
+        allow_pterosaur = self.game_speed >= 10
+
+        spawn_pterosaur = ge.get_probability(0.2) and allow_pterosaur
+
+        min_distance_between_types = 300
+
+        if spawn_pterosaur:
+            if last_enemy and last_enemy.enemy_type == "cactus" and distance_last_enemy < min_distance_between_types:
+                return
+
+            enemy_data = self.enemies_data[3]
+            Pterosaur(
+                enemy_data["sprite"],
+                ge.WINDOW_WIDTH - 100,
+                random.randrange(500, 601),
+                self.enemies_sprite
+            )
+
+        else:
+            if last_enemy and last_enemy.enemy_type == "pterosaur" and distance_last_enemy < min_distance_between_types:
+                return
+
             enemy_type = random.randrange(0, 3)
             enemy_data = self.enemies_data[enemy_type]
-            Cactus(enemy_data["sprite"], ge.WINDOW_WIDTH, enemy_data["y"], self.enemies_sprite)
-            self.distance_to_next_enemy = random.randrange(750, 2000)
+            Cactus(
+                enemy_data["sprite"],
+                ge.WINDOW_WIDTH,
+                enemy_data["y"],
+                self.enemies_sprite
+            )
+
+        self.distance_to_next_enemy = random.randrange(750, 2000)
 
     def get_dino_decisions(self):
         all_dinos = self.dino_sprite.sprites()
-        all_cactus = self.enemies_sprite.sprites()
 
         for dino in all_dinos:
-            next_cactus = self.find_next_cactus(dino)
-            distance_to_next_cactus = abs(dino.rect.x - next_cactus.rect.x) if next_cactus is not None else ge.WINDOW_WIDTH
-            height_next_cactus = abs(next_cactus.rect.bottom - ge.WINDOW_HEIGHT) if next_cactus is not None else 0
-            brain_input = (distance_to_next_cactus/ge.WINDOW_WIDTH, height_next_cactus/160, self.game_speed/self.max_game_speed)
-            dino.enemy_in_focus = next_cactus
+            next_enemies = self.find_next_two_enemies(dino)
+
+            # Defaults
+            dist1 = ge.WINDOW_WIDTH
+            height1 = 0
+            type1 = 0
+            width1 = 0
+
+            dist2 = ge.WINDOW_WIDTH
+            height2 = 0
+            type2 = 0
+            width2 = 0
+
+            if len(next_enemies) >= 1:
+                e1 = next_enemies[0]
+                dist1 = abs(dino.rect.x - e1.rect.x)
+                height1 = abs(e1.rect.bottom - ge.WINDOW_HEIGHT)
+                type1 = 1 if e1.enemy_type == "pterosaur" else 0
+                width1 = e1.rect.width
+
+            if len(next_enemies) >= 2:
+                e2 = next_enemies[1]
+                dist2 = abs(dino.rect.x - e2.rect.x)
+                height2 = abs(e2.rect.bottom - ge.WINDOW_HEIGHT)
+                type2 = 1 if e2.enemy_type == "pterosaur" else 0
+                width2 = e2.rect.width
+
+            brain_input = (
+                dist1 / ge.WINDOW_WIDTH,
+                height1 / 160,
+                type1,
+                width1 / 100,
+
+                dist2 / ge.WINDOW_WIDTH,
+                height2 / 160,
+                type2,
+                width2 / 100,
+
+                self.game_speed / self.max_game_speed
+            )
+
+            dino.enemy_in_focus = next_enemies[0] if len(next_enemies) > 0 else None
             dino.get_decision(brain_input)
 
-    def find_next_cactus(self, dino):
-        all_enemies = self.enemies_sprite.sprites()
-        all_enemies.sort(key=lambda x: x.rect.x, reverse=False)
-        total_enemies = len(all_enemies)
+    def find_next_two_enemies(self, dino):
+        enemies = self.enemies_sprite.sprites()
+        enemies.sort(key=lambda x: x.rect.x)
 
-        if total_enemies <= 0:
-            return None
+        next_enemies = []
 
-        if total_enemies == 1 and dino.rect.left <= (all_enemies[0].rect.right + 5):
-            return all_enemies[0]
+        for enemy in enemies:
+            if dino.rect.left <= (enemy.rect.right + 5):
+                next_enemies.append(enemy)
+                if len(next_enemies) == 2:
+                    break
 
-        for cactus in all_enemies:
-            if dino.rect.left <= (cactus.rect.right + 5):
-                return cactus
-
-        return None
+        return next_enemies
 
     def collisions(self):
         if self.ia_playing:
@@ -147,6 +223,23 @@ class Game:
                 dino.collisions(self.enemies_sprite)
         else:
             self.dino.collisions(self.enemies_sprite)
+
+    def reward_passed_enemies(self):
+        all_dinos = self.dino_sprite.sprites()
+        all_enemies = self.enemies_sprite.sprites()
+
+        for enemy in all_enemies:
+            if enemy.passed:
+                continue
+
+            for dino in all_dinos:
+                if enemy.rect.right < dino.rect.left:
+                    enemy.passed = True
+
+                    for d in all_dinos:
+                        d.plus_fitness(10)
+
+                    break
 
     def manual_generate_enemies(self, events):
         if events.type == pygame.KEYUP:

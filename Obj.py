@@ -19,6 +19,7 @@ class Pterosaur(Obj):
         self.ticks = 0
         self.tick_time = 0
         self.enemy_type = "pterosaur"
+        self.passed = False
 
     def update(self, *args):
         self.move(args[0])
@@ -42,6 +43,7 @@ class Cactus(Obj):
     def __init__(self, image, x, y, *groups):
         super().__init__(image, x, y, *groups)
         self.enemy_type = "cactus"
+        self.passed = False
 
     def update(self, *args):
         self.move(args[0])
@@ -53,10 +55,10 @@ class Cactus(Obj):
 
 
 class Dino(Obj):
-    DINO_X = 20
-    DINO_Y = 300
-    DINO_DOWN_Y = DINO_Y + 30
-    JUMP_FORCE = -1.1
+    DINO_X = 20.0
+    DINO_Y = 300.0
+    DINO_DOWN_Y = DINO_Y + 30.0
+    JUMP_FORCE = -23.0
 
     def __init__(self, image, x, y, *groups):
         super().__init__(image, x, y, *groups)
@@ -65,10 +67,10 @@ class Dino(Obj):
 
         self.is_down = False
         self.is_jump = False
+        self.down_timer = 0
         self.ticks = 0
         self.vel = 4
         self.grav = 1.3
-        self.extra_jump_force = 11
         self.jump_force = 0
         self.ticks_time = 0
         self.enemy_in_focus = None
@@ -79,96 +81,107 @@ class Dino(Obj):
 
     def anim(self):
         x = self.rect.x
-        y = self.rect.y
+        bottom = self.rect.bottom
 
         self.ticks_time += 1
+
         if not self.im_in_ground():
             self.image = pygame.image.load("assets/dino/dino_0.png")
+
             colorImage = pygame.Surface(self.image.get_size()).convert_alpha()
             colorImage.fill(self.color)
             self.image.blit(colorImage, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
             self.rect = self.image.get_rect()
             self.rect.x = x
-            self.rect.y = y
+            self.rect.bottom = bottom
+
         elif self.ticks_time >= (ge.FPS / 8):
+
             if not self.is_down:
                 self.ticks = (self.ticks + 1) % 3
-                self.image = pygame.image.load("assets/dino/dino_" + str(self.ticks) + ".png")
-                colorImage = pygame.Surface(self.image.get_size()).convert_alpha()
-                colorImage.fill(self.color)
-                self.image.blit(colorImage, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
-                self.rect = self.image.get_rect()
-                self.rect.x = x
-                self.rect.y = y
-            elif self.is_down:
+                self.image = pygame.image.load(f"assets/dino/dino_{self.ticks}.png")
+
+            else:
                 self.ticks = (self.ticks + 1) % 2
-                self.image = pygame.image.load("assets/dino_down/dino_down_" + str(self.ticks) + ".png")
-                colorImage = pygame.Surface(self.image.get_size()).convert_alpha()
-                colorImage.fill(self.color)
-                self.image.blit(colorImage, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
-                self.rect = self.image.get_rect()
-                self.rect.x = x
-                self.rect.y = y + 24
+                self.image = pygame.image.load(f"assets/dino_down/dino_down_{self.ticks}.png")
+
+            colorImage = pygame.Surface(self.image.get_size()).convert_alpha()
+            colorImage.fill(self.color)
+            self.image.blit(colorImage, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+            self.rect = self.image.get_rect()
+            self.rect.x = x
+            self.rect.bottom = bottom
 
             self.ticks_time = 0
 
     def move(self):
-        self.vel = self.vel + self.grav if self.vel < (self.grav + 10) else (self.grav + 10)
+        if self.down_timer > 0:
+            self.down_timer -= 1
+            self.is_down = True
+            self.grav = 3
+        else:
+            self.is_down = False
+            self.grav = 1.3
+
+        self.vel += self.grav
+        if self.vel > 10:
+            self.vel = 10
 
         self.rect.y += self.vel
 
-        if self.im_in_ground():
+        if self.rect.bottom >= ge.TOP_GROUND:
             self.rect.bottom = ge.TOP_GROUND
+            self.vel = 0
 
     def jump(self):
         if self.im_in_ground():
-            self.vel = self.vel * DinoExpert.JUMP_FORCE - self.extra_jump_force
+            self.down_timer = 0
+            self.is_down = False
+            self.grav = 1.3
+            self.vel = self.JUMP_FORCE
 
     def get_down(self):
-        self.is_down = True
-        self.grav = 2.6
-        self.extra_jump_force = 20
-
-    def get_up(self):
-        self.is_down = False
-        self.grav = 1.3
-        self.extra_jump_force = 10
+        self.down_timer = 10
 
     def im_in_ground(self):
-        return self.rect.bottom >= ge.TOP_GROUND
+        return self.rect.bottom >= ge.TOP_GROUND - 1
 
 
 class DinoExpert(Dino):
 
-    def __init__(self, image, x, y, brain, genoma, id, *groups):
+    def __init__(self, image, x, y, brain, genoma, id, color, *groups):
         super().__init__(image, x, y, *groups)
         self.brain = brain
         self.genoma = genoma
         self.id = id
         self.fitness = 0
-
+        self.color = color
 
     def get_decision(self, brain_input):
         p = self.brain.activate(brain_input)
-        decision = max(enumerate(p), key=lambda x: x[1])[0]
-        if p[decision] >= 0.5:
-            if decision == 0:
-                self.get_down()
-            elif decision == 1:
-                self.get_up()
-            elif decision == 2:
-                self.jump()
 
+        # Output 0 = jump
+        # Output 1 = down
+
+        if p[0] > 0.5:
+            self.jump()
+
+        if p[1] > 0.5:
+            self.get_down()
 
     def collisions(self, obj):
         col = pygame.sprite.spritecollide(self, obj, False)
         if col:
-            self.genoma.fitness -= 45
-            self.fitness -= 45
+            self.plus_fitness(-50)
             self.kill()
         else:
-            self.genoma.fitness += 0.1
-            self.fitness += 0.1
+            self.plus_fitness(0.01)
+
+    def plus_fitness(self, value):
+        self.genoma.fitness += value
+        self.fitness += value
 
 
 class DinoHuman(Dino):
@@ -181,9 +194,6 @@ class DinoHuman(Dino):
                 self.jump()
             elif events.key == pygame.K_DOWN:
                 self.get_down()
-        elif events.type == pygame.KEYUP:
-            if events.key == pygame.K_DOWN:
-                self.get_up()
 
     def collisions(self, obj):
         col = pygame.sprite.spritecollide(self, obj, False)
