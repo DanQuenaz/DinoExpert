@@ -125,7 +125,7 @@ class Game:
 
         spawn_pterosaur = ge.get_probability(0.2) and allow_pterosaur
 
-        min_distance_between_types = 300
+        min_distance_between_types = 350
 
         if spawn_pterosaur:
             if last_enemy and last_enemy.enemy_type == "cactus" and distance_last_enemy < min_distance_between_types:
