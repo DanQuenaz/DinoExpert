@@ -16,13 +16,14 @@ class Game:
         self.tick_game = 0
         self.ground1 = Obj("assets/ground.png", 0, ge.WINDOW_HEIGHT - 26, self.ground_sprite)
         self.ground2 = Obj("assets/ground.png", ge.WINDOW_WIDTH, ge.WINDOW_HEIGHT - 26, self.ground_sprite)
-        self.distance_to_next_enemy = ge.WINDOW_WIDTH
+        self.distance_to_next_enemy = ge.WINDOW_WIDTH/2
         self.ticks_text = 0
         self.max_game_speed = 20
         self.dino_enemy_focus = False
         self.show_game_info = True
         pygame.font.init()
         self.font = pygame.font.SysFont('Comic Sans MS', 15)
+        self.spawn_pterosaur = False
 
         self.enemies_data = [
             {
@@ -109,50 +110,60 @@ class Game:
     def generate_enemies(self):
         all_enemies = self.enemies_sprite.sprites()
         total_enemies = len(all_enemies)
-        distance_last_enemy = 2000
         last_enemy = None
+
 
         if total_enemies > 0:
             last_enemy = all_enemies[-1]
             distance_last_enemy = abs(ge.WINDOW_WIDTH - last_enemy.rect.x)
+        else:
+            distance_last_enemy = 2000
 
-        can_spawn = distance_last_enemy >= self.distance_to_next_enemy
+        MIN_TIME = 1.5
+        min_safe_distance = self.game_speed * ge.FPS * MIN_TIME
 
-        if not can_spawn:
+        if distance_last_enemy < max(self.distance_to_next_enemy, min_safe_distance):
             return
 
-        allow_pterosaur = self.game_speed >= 10
+        allow_pterosaur = self.game_speed >= 0
+        self.spawn_pterosaur = self.spawn_pterosaur or (ge.get_probability(0.005) and allow_pterosaur)
 
-        spawn_pterosaur = ge.get_probability(0.2) and allow_pterosaur
-
-        min_distance_between_types = 350
-
-        if spawn_pterosaur:
-            if last_enemy and last_enemy.enemy_type == "cactus" and distance_last_enemy < min_distance_between_types:
+        if self.spawn_pterosaur:
+            if last_enemy and last_enemy.enemy_type == "cactus":
                 return
 
             enemy_data = self.enemies_data[3]
             Pterosaur(
                 enemy_data["sprite"],
-                ge.WINDOW_WIDTH - 100,
+                ge.WINDOW_WIDTH,
                 random.randrange(500, 601),
                 self.enemies_sprite
             )
+            self.spawn_pterosaur = False
 
-        else:
-            if last_enemy and last_enemy.enemy_type == "pterosaur" and distance_last_enemy < min_distance_between_types:
-                return
+        if not self.spawn_pterosaur:
 
-            enemy_type = random.randrange(0, 3)
-            enemy_data = self.enemies_data[enemy_type]
-            Cactus(
-                enemy_data["sprite"],
-                ge.WINDOW_WIDTH,
-                enemy_data["y"],
-                self.enemies_sprite
-            )
+            spawn_cactus = False
 
-        self.distance_to_next_enemy = random.randrange(750, 2000)
+            if last_enemy and last_enemy.enemy_type == "pterosaur":
+                spawn_cactus = ge.get_probability(0.05)
+            else:
+                spawn_cactus = ge.get_probability(0.06)
+
+            if spawn_cactus:
+                enemy_type = random.randrange(0, 3)
+                enemy_data = self.enemies_data[enemy_type]
+                Cactus(
+                    enemy_data["sprite"],
+                    ge.WINDOW_WIDTH,
+                    enemy_data["y"],
+                    self.enemies_sprite
+                )
+
+        self.distance_to_next_enemy = random.randrange(
+            int(min_safe_distance),
+            int(min_safe_distance * 2)
+        )
 
     def get_dino_decisions(self):
         all_dinos = self.dino_sprite.sprites()
@@ -164,21 +175,17 @@ class Game:
             dist = ge.WINDOW_WIDTH
             height = 0
             type = 0
-            width = 0
 
             if len(next_enemies) >= 1:
                 e1 = next_enemies[0]
                 dist = abs(dino.rect.x - e1.rect.x)
                 height = abs(e1.rect.bottom - ge.WINDOW_HEIGHT)
                 type = 1 if e1.enemy_type == "pterosaur" else 0
-                width = e1.rect.width
 
             brain_input = (
                 dist / ge.WINDOW_WIDTH,
                 height / 160,
                 type,
-                width / 100,
-
                 self.game_speed / self.max_game_speed
             )
 

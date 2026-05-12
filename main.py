@@ -1,7 +1,13 @@
-import pygame
 from GameEnvironments import GameEnvironments as ge
 from Game import Game
 import neat
+
+import os
+os.environ["SDL_VIDEODRIVER"] = "windows"
+os.environ["SDL_HINT_RENDER_DRIVER"] = "opengl"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+import pygame
 
 
 class Main:

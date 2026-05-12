@@ -176,8 +176,6 @@ class DinoExpert(Dino):
         if col:
             self.plus_fitness(-50)
             self.kill()
-        else:
-            self.plus_fitness(0.01)
 
     def plus_fitness(self, value):
         self.genoma.fitness += value
