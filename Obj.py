@@ -1,4 +1,5 @@
 import pygame
+import numpy as np
 import random
 
 from GameEnvironments import GameEnvironments as ge
@@ -27,8 +28,7 @@ class Pterosaur(Obj):
 
     def anim(self):
         self.tick_time += 1
-
-        if self.tick_time >= (ge.FPS/4):
+        if self.tick_time >= (ge.FPS / 4):
             self.ticks = (self.ticks + 1) % 2
             self.image = pygame.image.load("assets/pterosaur/pterosaur_" + str(self.ticks) + ".png")
             self.tick_time = 0
@@ -82,26 +82,21 @@ class Dino(Obj):
     def anim(self):
         x = self.rect.x
         bottom = self.rect.bottom
-
         self.ticks_time += 1
 
         if not self.im_in_ground():
             self.image = pygame.image.load("assets/dino/dino_0.png")
-
             colorImage = pygame.Surface(self.image.get_size()).convert_alpha()
             colorImage.fill(self.color)
             self.image.blit(colorImage, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
-
             self.rect = self.image.get_rect()
             self.rect.x = x
             self.rect.bottom = bottom
 
         elif self.ticks_time >= (ge.FPS / 8):
-
             if not self.is_down:
                 self.ticks = (self.ticks + 1) % 3
                 self.image = pygame.image.load(f"assets/dino/dino_{self.ticks}.png")
-
             else:
                 self.ticks = (self.ticks + 1) % 2
                 self.image = pygame.image.load(f"assets/dino_down/dino_down_{self.ticks}.png")
@@ -113,7 +108,6 @@ class Dino(Obj):
             self.rect = self.image.get_rect()
             self.rect.x = x
             self.rect.bottom = bottom
-
             self.ticks_time = 0
 
     def move(self):
@@ -130,7 +124,6 @@ class Dino(Obj):
             self.vel = 10
 
         self.rect.y += self.vel
-
         if self.rect.bottom >= ge.TOP_GROUND:
             self.rect.bottom = ge.TOP_GROUND
             self.vel = 0
@@ -151,23 +144,29 @@ class Dino(Obj):
 
 class DinoExpert(Dino):
 
-    def __init__(self, image, x, y, brain, genoma, id, color, *groups):
+    def __init__(self, image, x, y, brain, idx, color, *groups):
+        """
+        brain: instância de NeuralNetwork
+        idx:   índice do dino na população (para rastrear fitness)
+        color: tupla RGB
+        """
         super().__init__(image, x, y, *groups)
         self.brain = brain
-        self.genoma = genoma
-        self.id = id
-        self.fitness = 0
+        self.id = idx
+        self.fitness = 0.0
         self.color = color
 
-    def get_decision(self, brain_input):
-        p = self.brain.activate(brain_input)
-
-        # Output 0 = jump
-        # Output 1 = down
+    def get_decision(self, brain_input: list):
+        """
+        brain_input: lista/array com 4 valores normalizados.
+        A NeuralNetwork espera shape (1, n_inputs).
+        Saída: [p_jump, p_down]
+        """
+        X = np.array(brain_input, dtype=float).reshape(1, -1)
+        p = self.brain.predict_proba(X)[0]  # shape (2,)
 
         if p[0] > 0.5:
             self.jump()
-
         if p[1] > 0.5:
             self.get_down()
 
@@ -178,7 +177,6 @@ class DinoExpert(Dino):
             self.kill()
 
     def plus_fitness(self, value):
-        self.genoma.fitness += value
         self.fitness += value
 
 
